@@ -1,2 +1,2 @@
-# PA-HMI-Simulator
+# Nuctech-HMI-Simulator
 PA Product HMIs simulator
