@@ -10,77 +10,21 @@
   line-height:normal;
   text-transform:none;
 }
-.box_1 {
+.image {
 }
-.primary_button {
-  color:#FFFFFF;
-}
-._图片 {
+.placeholder {
 }
 .button {
-}
-.line {
-}
-.primary_button1 {
-  color:#FFFFFF;
 }
 .link_button {
   color:#1E98D7;
 }
-._一级标题 {
+.heading_1 {
   font-family:"ArialMT", "Arial", sans-serif;
   font-weight:bold;
   font-style:normal;
   font-size:32px;
   text-align:left;
-}
-._二级标题 {
-  font-family:"ArialMT", "Arial", sans-serif;
-  font-weight:bold;
-  font-style:normal;
-  font-size:24px;
-  text-align:left;
-}
-._三级标题 {
-  font-family:"ArialMT", "Arial", sans-serif;
-  font-weight:bold;
-  font-style:normal;
-  font-size:18px;
-  text-align:left;
-}
-._四级标题 {
-  font-family:"ArialMT", "Arial", sans-serif;
-  font-weight:bold;
-  font-style:normal;
-  font-size:14px;
-  text-align:left;
-}
-._五级标题 {
-  font-family:"ArialMT", "Arial", sans-serif;
-  font-weight:bold;
-  font-style:normal;
-  text-align:left;
-}
-._六级标题 {
-  font-family:"ArialMT", "Arial", sans-serif;
-  font-weight:bold;
-  font-style:normal;
-  font-size:10px;
-  text-align:left;
-}
-._段落 {
-  text-align:left;
-}
-.droplist {
-  color:#000000;
-  text-align:left;
-}
-.form_disabled {
-}
-._表单提示文本 {
-  color:#999999;
-}
-._表单禁用 {
 }
 .heading_2 {
   font-family:"ArialMT", "Arial", sans-serif;
@@ -96,12 +40,59 @@
   font-size:18px;
   text-align:left;
 }
+.heading_4 {
+  font-family:"ArialMT", "Arial", sans-serif;
+  font-weight:bold;
+  font-style:normal;
+  font-size:14px;
+  text-align:left;
+}
+.heading_5 {
+  font-family:"ArialMT", "Arial", sans-serif;
+  font-weight:bold;
+  font-style:normal;
+  text-align:left;
+}
+.heading_6 {
+  font-family:"ArialMT", "Arial", sans-serif;
+  font-weight:bold;
+  font-style:normal;
+  font-size:10px;
+  text-align:left;
+}
+.paragraph {
+  text-align:left;
+}
+.menu_item {
+}
+.form_hint {
+  color:#999999;
+}
+.form_disabled {
+}
+.flow_shape {
+}
 .box_3 {
 }
 .shape {
 }
+.primary_button {
+  color:#FFFFFF;
+}
 .icon {
 }
-.image {
+.image1 {
 }
-textarea, select, input, button { outline: none; }
+.primary_button1 {
+  color:#FFFFFF;
+}
+.droplist {
+  color:#000000;
+  text-align:left;
+}
+.form_disabled1 {
+}
+.link_button1 {
+  color:#1E98D7;
+}
+textarea, select, input, button, div, svg { outline: none; }

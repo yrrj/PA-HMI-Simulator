@@ -107,7 +107,6 @@
 
         //$ax.style.startSuspendTextAlignment();
 
-        $ax.style.disableStateTransitions();
         // reset all the images only if we're going back to the default view
         if(!viewId) {
             $axure('*').each(function (diagramObject, elementId) {
@@ -136,6 +135,7 @@
             // we have to reset visibility if we aren't applying a new view
             $ax.visibility.resetLimboAndHiddenToDefaults();
             $ax.visibility.clearMovedAndResized();
+            $ax.style.clearAppliedStyles();
             $ax.repeater.refreshAllRepeaters();
             $ax.dynamicPanelManager.updateParentsOfNonDefaultFitPanels();
             $ax.dynamicPanelManager.updatePercentPanelCache($ax('*'));
@@ -143,6 +143,7 @@
         } else {
             $ax.visibility.clearLimboAndHidden();
             $ax.visibility.clearMovedAndResized();
+            $ax.style.clearAppliedStyles();
             _applyView(viewId);
             $ax.repeater.refreshAllRepeaters();
             $ax.dynamicPanelManager.updateAllLayerSizeCaches();

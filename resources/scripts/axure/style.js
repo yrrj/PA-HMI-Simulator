@@ -811,14 +811,39 @@
         return 'rgba(' + red + ',' + green + ',' + blue + ',' + alpha + ')';
     };
 
-    var _enableStateTransitions = function () {
-        $('body').removeClass('notransition');
+    var _enableStateTransitions = function (id) {
+        var jobj = $jobj(id);
+        var hasNotrs = jobj.hasClass('notrs');
+        if(!hasNotrs) return false;
+        $jobj(id).removeClass('notrs');
+        return true;
     }
-    $ax.style.enableStateTransitions = _enableStateTransitions;
-    var _disableStateTransitions = function () {
-        $('body').addClass('notransition');
+    
+    var _idToDisableTimeout = {};
+
+    var disableStateTransitionsOnEnd = function(id, transition) {
+        var element = $jobj(id)[0];
+        var _clearListenerAndTimeout = function () {
+            element.removeEventListener('transitionend', _disableStateTransitions);
+            if (_idToDisableTimeout[id]) {
+                clearTimeout(_idToDisableTimeout[id]);
+                delete _idToDisableTimeout[id];
+            }
+        };
+
+        _clearListenerAndTimeout();
+
+        var _disableStateTransitions = function() {
+            $jobj(id).addClass('notrs');
+            _clearListenerAndTimeout();
+        }
+        
+        var hasTransition = transition && transition.easing != 'none' && transition.duration != 0;
+        if(hasTransition) {
+            element.addEventListener('transitionend', _disableStateTransitions);
+            _idToDisableTimeout[id] = window.setTimeout(_disableStateTransitions, 5000);
+        } else _disableStateTransitions();
     }
-    $ax.style.disableStateTransitions = _disableStateTransitions;
 
     var _idToAppliedStyles = {};
     $ax.style.isLastAppliedStyle = function (id, className) {
@@ -826,13 +851,22 @@
         return false;
     }
 
-    $ax.style.setApplyStyleTag = function (className, cssRule) {
+    $ax.style.setApplyStyleTag = function (styleTagId, cssRule, selectorIds, eventInfo, itemIndex) {
         var head = document.getElementsByTagName('head')[0];
-        var styleTag = head.querySelector('#' + className);
+        var styleTag = head.querySelector('#' + styleTagId);
         if (!styleTag) {
             styleTag = document.createElement('style');
             styleTag.type = 'text/css';
-            styleTag.id = className;
+            styleTag.id = styleTagId;
+
+            for (var i = 0; i < selectorIds.length; i++) {
+                var rep = "\\{" + i + "\\}";
+                var objectPath = selectorIds[i];
+                var elementIds = $ax.getElementIdsFromPath(objectPath, eventInfo);
+                var id = elementIds[itemIndex];
+                cssRule = cssRule.replace(new RegExp(rep, "g"), id);
+            }
+
             styleTag.innerHTML = cssRule;
         }
         head.appendChild(styleTag);
@@ -841,19 +875,9 @@
     $ax.style.applyWidgetStyle = function (id, className, style, image, clearPrevious) {
         if (!clearPrevious && $ax.style.isLastAppliedStyle(id, className)) return;
 
-        _enableStateTransitions();
-        if (clearPrevious && _idToAppliedStyles[id] && _idToAppliedStyles[id].classList) {
-            for (var i = 0; i < _idToAppliedStyles[id].classList.length; i++) {
-                var classNameToRemove = _idToAppliedStyles[id].classList[i];
-                $jobj(id).removeClass(classNameToRemove);
-                $jobj($ax.repeater.applySuffixToElementId(id, '_div')).removeClass(classNameToRemove);
-                $jobj($ax.repeater.applySuffixToElementId(id, '_text')).removeClass(classNameToRemove);
-                $jobj($ax.repeater.applySuffixToElementId(id, '_input')).removeClass(classNameToRemove);
-            }
-            _idToAppliedStyles[id] = {
-                classList: [],
-                style: {},
-            };
+        var hasNotrs = _enableStateTransitions(id);
+        if (clearPrevious) {
+            _clearWidgetAppliedStyles(id);
         }
 
         if (_idToAppliedStyles[id] && _idToAppliedStyles[id].classList && _idToAppliedStyles[id].style) {
@@ -878,33 +902,94 @@
         $jobj($ax.repeater.applySuffixToElementId(id, '_text')).addClass(className);
         $jobj($ax.repeater.applySuffixToElementId(id, '_input')).addClass(className);
 
+        const state = _generateState(id);
+        var fullStyle = $.extend(_computeFullStyle(id, state, $ax.adaptive.currentViewId), _idToAppliedStyles[id].style);
+
         if ($ax.public.fn.IsImageBox($obj(id).type)) {
             if (image) {
                 _applyImage(id, image, "interaction");
             }
-        } else {
-            _applySvg(id, "interaction", $.extend(_computeFullStyle(id, "interaction", $ax.adaptive.currentViewId), _idToAppliedStyles[id].style));
+        } else {                        
+            _applySvg(id, "interaction", fullStyle);
+        }
+
+        _updateCornersForBorders(id, fullStyle);
+
+        if(hasNotrs) disableStateTransitionsOnEnd(id, _idToAppliedStyles[id].style.transition);
+    }
+
+    var _clearWidgetAppliedCorners = function(jobjDiv) {
+        jobjDiv.removeClass('nocrntl');
+        jobjDiv.removeClass('nocrntr');
+        jobjDiv.removeClass('nocrnbr');
+        jobjDiv.removeClass('nocrnbl');
+    }
+
+    var _updateCornersForBorders = function(id, fullStyle) {
+        var jobjDiv = $jobj($ax.repeater.applySuffixToElementId(id, '_div'));
+        if(jobjDiv.length == 0) return;
+
+        _clearWidgetAppliedCorners(jobjDiv);
+
+        var cornerRadius = fullStyle.cornerRadius;
+        var hasCornerRadius = cornerRadius > 0;
+        if(hasCornerRadius){
+            var borderVisibility = fullStyle.borderVisibility;
+            var hasBorderTop = borderVisibility.includes("top");
+            var hasBorderRight = borderVisibility.includes("right");
+            var hasBorderBottom = borderVisibility.includes("bottom");
+            var hasBorderLeft = borderVisibility.includes("left");
+
+            var cornerVisibility = fullStyle.cornerVisibility;
+            hasCornerTopRight = cornerVisibility.includes("top") && hasBorderTop == hasBorderRight;
+            hasCornerBottomRight = cornerVisibility.includes("right") && hasBorderBottom == hasBorderRight;
+            hasCornerBottomLeft = cornerVisibility.includes("bottom") && hasBorderBottom == hasBorderLeft;
+            hasCornerTopLeft = cornerVisibility.includes("left") && hasBorderTop == hasBorderLeft;
+
+
+            if(!hasCornerTopLeft) jobjDiv.addClass('nocrntl');
+            if(!hasCornerTopRight) jobjDiv.addClass('nocrntr');
+            if(!hasCornerBottomRight) jobjDiv.addClass('nocrnbr');
+            if(!hasCornerBottomLeft) jobjDiv.addClass('nocrnbl');
         }
     }
 
-    $axure.messageCenter.addMessageListener(function (message, data) {
-        if (message == "switchAdaptiveView") {
-            var ids = Object.keys(_idToAppliedStyles);
-            for (var i = 0; i < ids.length; i++) {
-                var id = ids[i];
-                for (var j = 0; j < _idToAppliedStyles[id].length; j++) {
-                    var className = _idToAppliedStyles[id][j];
-                    $jobj(id).removeClass(className);
-                    $jobj($ax.repeater.applySuffixToElementId(id, '_div')).removeClass(className);
-                    $jobj($ax.repeater.applySuffixToElementId(id, '_text')).removeClass(className);
-                    $jobj($ax.repeater.applySuffixToElementId(id, '_input')).removeClass(className);
-                }
+    _clearWidgetAppliedStyles = function (id) {
+        if (_idToAppliedStyles[id] && _idToAppliedStyles[id].classList) {
+            for (var i = 0; i < _idToAppliedStyles[id].classList.length; i++) {
+                var classNameToRemove = _idToAppliedStyles[id].classList[i];
+                $jobj(id).removeClass(classNameToRemove);
+                
+                var jobjDiv = $jobj($ax.repeater.applySuffixToElementId(id, '_div'));
+                jobjDiv.removeClass(classNameToRemove);
+                _clearWidgetAppliedCorners(jobjDiv);
+
+                $jobj($ax.repeater.applySuffixToElementId(id, '_text')).removeClass(classNameToRemove);
+                $jobj($ax.repeater.applySuffixToElementId(id, '_input')).removeClass(classNameToRemove);        
             }
-            _idToAppliedStyles = {};
+
+            delete _idToAppliedStyles[id];
         }
-    });
+    }
+
+    $ax.style.clearAppliedStyles = function () {
+        var ids = Object.keys(_idToAppliedStyles);
+        for (var i = 0; i < ids.length; i++) {
+            _clearWidgetAppliedStyles(ids[i]);
+        }
+
+        _idToAppliedStyles = {};
+    };
 
     var _applySvg = function (id, event, style) {
+
+        //is svg if compound or img is svg
+        var obj = $obj(id);
+        if (!obj.generateCompound) {
+            const svgContainerId = id + "_img";
+            const container = document.getElementById(svgContainerId);
+            if (!container || container.tagName.toLowerCase() != "svg") return;
+        }        
 
         let overridedStyle = style;
         if (!overridedStyle) {
@@ -914,17 +999,8 @@
             }
         }
         const originalBorderWidth = _computeFullStyle(id, "normal", $ax.adaptive.currentViewId).borderWidth;
-        const transition = "transition:" + $jobj(id).css('transition') + ", d 0s" + ";";
         if(!$.isEmptyObject(overridedStyle)) {
-
-            //TODO
-            //Background Image
-            //Maybe change SVG gen to use filter for Inner shadows instead of image
-            //Radial Gradients
-            //Correct Dash Array and Offset
-            //compound is currently generating more image files than needed - audit other places
-            //Line ends on compound
-            //Image widgets than gen as SVG due to props
+            const transition = (overridedStyle.transition ? ('transition: ' + overridedStyle.transition.css) : '') + ", d 0s;";
 
             function applyStyleOverrides(svgId, overridedStyle) {
                 //if(!contentDoc) return;
@@ -1141,13 +1217,19 @@
                                 var hasBorderBottom = overridedStyle.borderVisibility.includes("bottom");
                                 var hasBorderLeft = overridedStyle.borderVisibility.includes("left");
 
-                                var cornerRadius = Math.min(overridedStyle.cornerRadius, Math.min(size.width, size.height));
+                                var cornerRadius = overridedStyle.cornerRadius;
                                 var hasCornerRadius = cornerRadius > 0;
+                                var hasCornerTopRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("top") && hasBorderTop && hasBorderRight;
+                                var hasCornerBottomRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("right") && hasBorderBottom && hasBorderRight;
+                                var hasCornerBottomLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("bottom") && hasBorderBottom && hasBorderLeft;
+                                var hasCornerTopLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("left") && hasBorderTop && hasBorderLeft;
 
-                                var hasCornerTopRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("top") && hasBorderTop == hasBorderRight;
-                                var hasCornerBottomRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("right") && hasBorderBottom == hasBorderRight;
-                                var hasCornerBottomLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("bottom") && hasBorderBottom == hasBorderLeft;
-                                var hasCornerTopLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("left") && hasBorderTop == hasBorderLeft;
+                                var restrictToHalfHeight = hasCornerTopLeft && hasCornerBottomLeft || hasCornerTopRight && hasCornerBottomRight;
+                                var restrictToHalfWidth = hasCornerTopLeft && hasCornerTopRight || hasCornerBottomLeft && hasCornerBottomRight;
+                                var heightCeiling = restrictToHalfHeight ? size.height/2.0 : size.height;
+                                var widthCeiling = restrictToHalfWidth ? size.width/2.0 : size.width;
+                                var radiusCeiling = Math.min(heightCeiling, widthCeiling);
+                                var cornerRadius = Math.min(cornerRadius, radiusCeiling);
 
                                 var arcK = 0.44;
                                 var halfWidth = newBorderWidth / 2;
@@ -1222,6 +1304,10 @@
                                 }
 
                                 segments = [];
+                                hasCornerTopRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("top") && hasBorderTop == hasBorderRight;
+                                hasCornerBottomRight = hasCornerRadius && overridedStyle.cornerVisibility.includes("right") && hasBorderBottom == hasBorderRight;
+                                hasCornerBottomLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("bottom") && hasBorderBottom == hasBorderLeft;
+                                hasCornerTopLeft = hasCornerRadius && overridedStyle.cornerVisibility.includes("left") && hasBorderTop == hasBorderLeft;
                                 hasBorderTop = hasBorderRight = hasBorderBottom = hasBorderLeft = true;                                
                                 left = 0;
                                 top = 0;
@@ -1273,6 +1359,14 @@
                         var checkWidth = 3 * obj.buttonSize / 14;
                         
                         styleHtml += "#" + svgId + " .stroke.btn_check { stroke-width: " + checkWidth + "; } ";
+                    } else if($ax.public.fn.IsRadioButton(obj.type)) {
+                        if (overridedStyle.borderFill) {
+                            var styleFill = overridedStyle.borderFill;
+                            if (styleFill.fillType == "solid") {
+                                var borderColor = _getColorFromFill(styleFill);
+                                styleHtml += "#" + svgId + " .stroke.btn_check { fill: " + borderColor + "; } ";
+                            }
+                        }
                     }
                 }
 
@@ -1522,69 +1616,35 @@
                 for(var i = 0; i < obj.compoundChildren.length; i++) {
                     var componentId = obj.compoundChildren[i];
                     var childId = $ax.public.fn.getComponentId(id, componentId) + "_img";
-                    //const container = document.getElementById(childId);
-                //    const contentDoc = container.contentDocument;
-                //    if(!contentDoc || contentDoc.URL == "about:blank") container.onload = () => applyStyleOverrides(container.contentDocument, overridedStyle);
-                //    else applyStyleOverrides(contentDoc, overridedStyle);
                     applyStyleOverrides(childId, overridedStyle);
                 }
             } else {
                 const svgContainerId = id + "_img";
                 const container = document.getElementById(svgContainerId);
                 if (!container || container.tagName.toLowerCase() != "svg") return;
-                //if($ax.public.fn.IsRadioButton(obj.type) || $ax.public.fn.IsCheckBox(obj.type)) {
-                //    let imageKey = event + "~";
-                //    const viewStr = parent.document.querySelector(".currentAdaptiveView").getAttribute("val");
-                //    if(viewStr && viewStr !== "default") imageKey += viewStr;
-                //    const data = obj.images[imageKey];
-                //    if (data && container.data && !container.data.includes(data)) container.data = data;
-                //}
-                //const contentDoc = container.contentDocument;
-                //if(!contentDoc || contentDoc.URL == "about:blank") container.onload = () => applyStyleOverrides(container.contentDocument, overridedStyle);
-                //else applyStyleOverrides(contentDoc, overridedStyle);
                 applyStyleOverrides(svgContainerId, overridedStyle);
             }
         }
-        //else {
-
-        //    function resetOverrides(svgContainerId) {
-        //        var svgFills = document.getElementById(svgContainerId).contentDocument.querySelectorAll(".fill");
-        //        svgFills.forEach((svgFill) => {
-        //            svgFill.setAttribute("style", "");
-        //        });
-        //        var svgBorders = document.getElementById(svgContainerId).contentDocument.querySelectorAll(".stroke");
-        //        svgBorders.forEach((svgBorder) => {
-        //            svgBorder.setAttribute("style", "");
-        //            svgBorder.setAttribute("stroke-dasharray", "");
-        //        });
-        //    }
-
-        //    var object = $obj(id);
-        //    if(object.generateCompound) {
-        //        for(var i = 0; i < object.compoundChildren.length; i++) {
-        //            var componentId = object.compoundChildren[i];
-        //            var childId = $ax.public.fn.getComponentId(id, componentId) + "_img";
-        //            resetOverrides(childId, overridedStyle);
-        //        }
-        //    } else {
-        //        const svgContainerId = id + "_img";
-        //        resetOverrides(svgContainerId, overridedStyle);
-        //    }
-        //}
     }
 
-    var _applyImageAndTextJson = function (id, event) {
-        _enableStateTransitions();
+    var _applyImageAndTextJson = function (id, event, blockTransition) {
+        var hasNotrs;
+        if(!blockTransition) hasNotrs = _enableStateTransitions(id);
 
         const textId = $ax.GetTextPanelId(id);
         if(textId) _resetTextJson(id, textId);
+
+        var fullStyle = _computeFullStyle(id, event, $ax.adaptive.currentViewId);
+        if (_idToAppliedStyles[id] && _idToAppliedStyles[id].style) {
+            $.extend(fullStyle, _idToAppliedStyles[id].style);
+        }
 
         if($ax.public.fn.IsImageBox($obj(id).type)) {
             const imageUrl = $ax.adaptive.getImageForStateAndView(id, event);
             if(imageUrl) {
                 _applyImage(id, imageUrl, event);
             }
-        } else _applySvg(id, event);
+        } else _applySvg(id, event, fullStyle);
 
         if (textId) {
             const overridedStyle = _computeAllOverrides(id, undefined, event, $ax.adaptive.currentViewId);
@@ -1593,7 +1653,7 @@
             var textElement = document.getElementById(textId);
             if (!$.isEmptyObject(overridedStyle)) {
                 var diagramObject = $ax.getObjectFromElementId(id);
-                var fullStyle = _computeFullStyle(id, event, $ax.adaptive.currentViewId, overridedStyle);
+                //var fullStyle = _computeFullStyle(id, event, $ax.adaptive.currentViewId, overridedStyle);
                 var padding = { top: 0, right: 0, bottom: 0, left: 0 };
                 if (fullStyle.paddingTop) padding.top = +fullStyle.paddingTop;
                 if (fullStyle.paddingBottom) padding.bottom = +fullStyle.paddingBottom;
@@ -1630,6 +1690,10 @@
                 $ax.repeater.applySuffixToElementId(id, '_input')
             ], event, false
         );
+
+        _updateCornersForBorders(id, fullStyle);
+
+        if(!blockTransition && hasNotrs) disableStateTransitionsOnEnd(id, fullStyle.transition);
     };
     
     let _updateStateClasses = function(ids, event, addMouseOverOnMouseDown) {
@@ -2287,7 +2351,7 @@
             var repeaterId = $ax.getParentRepeaterFromScriptId(shapeId);
             if(repeaterId) continue;
             var elementId = $ax.GetButtonShapeId(shapeId);
-            if(elementId) _applyImageAndTextJson(elementId, $ax.style.generateState(elementId));
+            if(elementId) _applyImageAndTextJson(elementId, $ax.style.generateState(elementId), true);
         }
 
         _adaptiveStyledWidgets = {};
@@ -2442,7 +2506,7 @@
         val = Math.floor(val / 256);
         color.r = val % 256;
         val = Math.floor(val / 256);
-        color.a = val % 256;
+        color.a = (val % 256) / 255;
         return _getCssColor(color);
     };
 
