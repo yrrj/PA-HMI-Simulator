@@ -5,26 +5,67 @@
   <title>PA散点图生成器</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
-    body { font-family: sans-serif; margin: 20px; }
-    #controls { margin-top: 20px; }
+    body {
+      font-family: sans-serif;
+      margin: 0; /* 移除body默认外边距 */
+      display: flex; /* 使body成为flex容器，占据整个视口高度 */
+      min-height: 100vh; /* 确保body至少占满整个视口高度 */
+    }
+
+    #main-container {
+      display: flex; /* 使用flexbox布局左右两部分 */
+      width: 100%; /* 占据body的全部宽度 */
+    }
+
+    #left-panel {
+      flex: 0 0 16.666%; /* 不伸展，不收缩，基础宽度为总宽度的1/6 (约16.666%) */
+      padding: 20px;
+      box-sizing: border-box; /* 内边距包含在宽度内 */
+      border-right: 1px solid #eee; /* 可选：左右分隔线 */
+      overflow-y: auto; /* 如果内容过多，允许垂直滚动 */
+      background-color: #f9f9f9; /* 可选：左侧背景色 */
+    }
+
+    #right-panel {
+      flex: 1; /* 占据剩余的所有空间 (5/6) */
+      padding: 20px;
+      box-sizing: border-box;
+      display: flex; /* 使右侧内容也使用flexbox */
+      flex-direction: column; /* 内部元素垂直堆叠 (提示信息在图表上方) */
+    }
+
+    #controls {
+      margin-top: 20px;
+    }
+
     input[type=range] {
-      width: 300px;
+      width: 100%; /* 滑块宽度适应其父容器 */
       height: 8px;
       border-radius: 5px;
       background: linear-gradient(to right, #3b82f6 0%, #ccc 0%);
       outline: none;
       appearance: none;
+      -webkit-appearance: none; /* 兼容旧版WebKit */
     }
     input[type=range]::-webkit-slider-thumb {
       appearance: none;
+      -webkit-appearance: none; /* 兼容旧版WebKit */
       width: 16px; height: 16px;
       border-radius: 50%;
       background: #3b82f6;
       border: 2px solid white;
       cursor: pointer;
     }
+    input[type=range]::-moz-range-thumb { /* Firefox兼容 */
+        width: 16px; height: 16px;
+        border-radius: 50%;
+        background: #3b82f6;
+        border: 2px solid white;
+        cursor: pointer;
+    }
+
     #samplingMessage {
-      margin-top: 10px;
+      margin-bottom: 10px; /* 在提示信息和图表之间增加间距 */
       padding: 10px;
       background-color: #fff3cd; /* 警告黄色背景 */
       color: #856404; /* 深黄色文字 */
@@ -33,6 +74,13 @@
       display: none; /* 默认隐藏 */
       font-weight: bold;
     }
+
+    #plot {
+      width: 100%; /* 图表宽度占满右侧容器 */
+      flex-grow: 1; /* 图表占据右侧容器剩余的垂直空间 */
+      min-height: 400px; /* 确保图表有最小高度，以防内容过少时被压缩 */
+    }
+
     .slider-group {
         margin-bottom: 15px;
     }
@@ -40,43 +88,74 @@
         display: inline-block;
         width: 100px; /* 调整标签宽度 */
         vertical-align: middle;
+        white-space: nowrap; /* 防止标签文本换行 */
+    }
+    /* 解决解释文字对齐问题 */
+    .slider-group small {
+        /* 移除 margin-left，让其自然靠左 */
+        margin-left: 0; 
+        display: block; /* 确保独占一行 */
+        color: #666;
     }
   </style>
 </head>
 <body>
-  <h2>PA散点图生成器1.0</h2>
-  <input type="file" id="fileInput" accept=".csv" />
-  <div id="controls">
-    <div class="slider-group">
-        <label><input type="checkbox" id="showMag" checked /> 显示 Mag</label>
-        <label><input type="checkbox" id="showGun" checked /> 显示 Gun</label>
+  <div id="main-container">
+    <div id="left-panel">
+      <h2>PA散点图生成器2.0</h2>
+      <input type="file" id="fileInput" accept=".csv" />
+      <div id="controls">
+        <div class="slider-group">
+            <label><input type="checkbox" id="showMag" checked /> 显示 Mag</label>
+            <label><input type="checkbox" id="showGun" checked /> 显示 Gun</label>
+        </div>
+        
+        <div class="slider-group">
+            <label class="slider-label">开始时间</label>
+            <input type="range" id="startSlider" step="1" />
+            <span id="startTimeLabel">00:00:00</span>
+        </div>
+        
+        <div class="slider-group">
+            <label class="slider-label">结束时间</label>
+            <input type="range" id="endSlider" step="1" />
+            <span id="endTimeLabel">23:59:59</span>
+        </div>
+
+        <div class="slider-group">
+            <label class="slider-label">采样阀值</label>
+            <input type="range" id="thresholdSlider" min="10000" max="100000" step="1000" value="10000" />
+            <span id="thresholdLabel">10000</span>
+            <br>
+            <small>（当显示数据点数超过此阀值时，图表将进行采样以优化性能）</small>
+        </div>
+
+        <div class="slider-group">
+            <label class="slider-label">最小 Mag 值</label>
+            <input type="range" id="minMagSlider" min="-50" max="100" step="1" value="0" />
+            <span id="minMagLabel">0</span>
+            <br>
+            <small>（低于此值的 Mag 数据点将不显示）</small>
+        </div>
+
+        <div class="slider-group">
+            <label class="slider-label">最小 Gun 值</label>
+            <input type="range" id="minGunSlider" min="-500" max="1000" step="1" value="0" />
+            <span id="minGunLabel">0</span>
+            <br>
+            <small>（低于此值的 Gun 数据点将不显示）</small>
+        </div>
+
+      </div>
     </div>
     
-    <div class="slider-group">
-        <label class="slider-label">开始时间</label>
-        <input type="range" id="startSlider" step="1" />
-        <span id="startTimeLabel">00:00:00</span>
+    <div id="right-panel">
+      <div id="samplingMessage">
+        当前图示未显示所有数据点，放大（Zoom In）后将显示所有数据点。
+      </div>
+      <div id="plot"></div>
     </div>
-    
-    <div class="slider-group">
-        <label class="slider-label">结束时间</label>
-        <input type="range" id="endSlider" step="1" />
-        <span id="endTimeLabel">23:59:59</span>
-    </div>
-
-    <div class="slider-group">
-        <label class="slider-label">采样阀值</label>
-        <input type="range" id="thresholdSlider" min="10000" max="100000" step="1000" value="10000" />
-        <span id="thresholdLabel">10000</span>
-        <br>
-        <small style="margin-left: 100px; color: #666;">（当显示数据点数超过此阀值时，图表将进行采样以优化性能）</small>
-    </div>
-
   </div>
-  <div id="samplingMessage">
-    当前图示未显示所有数据点，放大（Zoom In）后将显示所有数据点。
-  </div>
-  <div id="plot" style="width:100%;height:600px;"></div>
 
   <script>
     let allData = {};
@@ -87,11 +166,12 @@
     const startSlider = document.getElementById('startSlider');
     const endSlider = document.getElementById('endSlider');
     const samplingMessage = document.getElementById('samplingMessage');
-    const thresholdSlider = document.getElementById('thresholdSlider'); // 新增：获取阀值滑块
-    const thresholdLabel = document.getElementById('thresholdLabel');   // 新增：获取阀值标签
-
-    // MAX_POINTS_TO_PLOT 现在将从滑块动态获取
-    // const MAX_POINTS_TO_PLOT = 10000; 
+    const thresholdSlider = document.getElementById('thresholdSlider'); 
+    const thresholdLabel = document.getElementById('thresholdLabel');   
+    const minMagSlider = document.getElementById('minMagSlider');     
+    const minMagLabel = document.getElementById('minMagLabel');       
+    const minGunSlider = document.getElementById('minGunSlider');     
+    const minGunLabel = document.getElementById('minGunLabel');       
 
     function secondsToTime(seconds) {
       const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
@@ -115,7 +195,7 @@
         }
       }
       console.warn('timeToSeconds: 无法解析时间字符串', timeStr);
-      return 0; // 解析失败返回 0
+      return 0; 
     }
 
     function updateSliderStyle(slider) {
@@ -131,16 +211,22 @@
       updateSliderStyle(startSlider);
       updateSliderStyle(endSlider);
 
-      // 更新阀值滑块的显示
       thresholdLabel.textContent = thresholdSlider.value;
       updateSliderStyle(thresholdSlider);
+
+      minMagLabel.textContent = minMagSlider.value;
+      updateSliderStyle(minMagSlider);
+      minGunLabel.textContent = minGunSlider.value;
+      updateSliderStyle(minGunSlider);
     }
 
     function updatePlot() {
-      console.time('updatePlot'); // 开始计时
-      updateSliders(); // 先更新滑块显示，以防是用户直接拖动滑块触发的
+      console.time('updatePlot'); 
+      updateSliders(); 
 
-      const currentMaxPointsToPlot = parseInt(thresholdSlider.value, 10); // 从滑块获取当前阀值
+      const currentMaxPointsToPlot = parseInt(thresholdSlider.value, 10); 
+      const minMagThreshold = parseFloat(minMagSlider.value); 
+      const minGunThreshold = parseFloat(minGunSlider.value); 
 
       const showMag = document.getElementById('showMag').checked;
       const showGun = document.getElementById('showGun').checked;
@@ -153,20 +239,31 @@
 
       for (let i = start; i <= end; i++) {
         x_full_range_data.push(secondsToTime(i)); 
-        mag_full_range_data.push(showMag ? (allData[i]?.mag ?? null) : null);
-        gun_full_range_data.push(showGun ? (allData[i]?.gun ?? null) : null);
+        
+        let currentMag = allData[i]?.mag;
+        let currentGun = allData[i]?.gun;
+
+        mag_full_range_data.push(
+            showMag && currentMag !== null && !isNaN(currentMag) && currentMag >= minMagThreshold
+            ? currentMag
+            : null 
+        );
+
+        gun_full_range_data.push(
+            showGun && currentGun !== null && !isNaN(currentGun) && currentGun >= minGunThreshold
+            ? currentGun
+            : null 
+        );
       }
 
       let x_display = [];
       let mag_display = [];
       let gun_display = [];
 
-      // 动态采样逻辑
-      if (x_full_range_data.length > currentMaxPointsToPlot) { // 使用动态阀值
-        samplingMessage.style.display = 'block'; // 显示提示信息
+      if (x_full_range_data.length > currentMaxPointsToPlot) { 
+        samplingMessage.style.display = 'block'; 
         const step = Math.ceil(x_full_range_data.length / currentMaxPointsToPlot);
         
-        // 确保第一个点总是包含在内
         x_display.push(x_full_range_data[0]);
         mag_display.push(mag_full_range_data[0]);
         gun_display.push(gun_full_range_data[0]);
@@ -176,7 +273,6 @@
           mag_display.push(mag_full_range_data[i]);
           gun_display.push(gun_full_range_data[i]);
         }
-        // 确保最后一个点总是包含在内
         if (x_full_range_data.length > 1) { 
             x_display.push(x_full_range_data[x_full_range_data.length - 1]);
             mag_display.push(mag_full_range_data[mag_full_range_data.length - 1]);
@@ -185,15 +281,59 @@
 
         console.log(`采样：从 ${x_full_range_data.length} 点减少到 ${x_display.length} 点`);
       } else {
-        samplingMessage.style.display = 'none'; // 隐藏提示信息
+        samplingMessage.style.display = 'none'; 
         x_display = x_full_range_data;
         mag_display = mag_full_range_data;
         gun_display = gun_full_range_data;
         console.log(`未采样：共 ${x_full_range_data.length} 点`);
       }
 
-      // 关键：更新 x_plotted_categories 为 Plotly 实际绘制的 X 轴类别
       x_plotted_categories = x_display;
+
+      // --- 计算 Y 轴范围 ---
+      let currentMinMagDisplayed = Infinity;
+      let currentMaxMagDisplayed = -Infinity;
+      mag_display.forEach(val => {
+        if (val !== null && !isNaN(val)) {
+          if (val < currentMinMagDisplayed) currentMinMagDisplayed = val;
+          if (val > currentMaxMagDisplayed) currentMaxMagDisplayed = val;
+        }
+      });
+
+      let currentMinGunDisplayed = Infinity;
+      let currentMaxGunDisplayed = -Infinity;
+      gun_display.forEach(val => {
+        if (val !== null && !isNaN(val)) {
+          if (val < currentMinGunDisplayed) currentMinGunDisplayed = val;
+          if (val > currentMaxGunDisplayed) currentMaxGunDisplayed = val;
+        }
+      });
+
+      let magYaxisRange = null;
+      if (showMag) {
+          if (currentMinMagDisplayed !== Infinity) { // 有数据显示
+              // 轴的下限取：显示的最小数据值 与 最小Mag阈值 中的较小者
+              const effectiveMin = Math.min(currentMinMagDisplayed, minMagThreshold);
+              magYaxisRange = [effectiveMin, currentMaxMagDisplayed];
+          } else { // 选中显示Mag，但无数据显示 (所有点被过滤或本身无数据)
+              // 提供一个默认范围，确保轴可见
+              magYaxisRange = [minMagThreshold, minMagThreshold + 100]; 
+          }
+      }
+
+      let gunYaxisRange = null;
+      if (showGun) {
+          if (currentMinGunDisplayed !== Infinity) { // 有数据显示
+              // 轴的下限取：显示的最小数据值 与 最小Gun阈值 中的较小者
+              const effectiveMin = Math.min(currentMinGunDisplayed, minGunThreshold);
+              gunYaxisRange = [effectiveMin, currentMaxGunDisplayed];
+          } else { // 选中显示Gun，但无数据显示
+              // 提供一个默认范围
+              gunYaxisRange = [minGunThreshold, minGunThreshold + 100];
+          }
+      }
+      // --- Y 轴范围计算结束 ---
+
 
       const traces = [];
       if (showMag) {
@@ -209,8 +349,7 @@
         });
       }
 
-      Plotly.newPlot('plot', traces, {
-        // title: '散点图：Mag vs Gun', // 移除标题
+      const layout = {
         xaxis: { 
           title: '时间 (HH:MM:SS)', 
           type: 'category' 
@@ -218,32 +357,38 @@
         yaxis: {
           title: 'Mag',
           titlefont: { color: 'blue' },
-          tickfont: { color: 'blue' }
+          tickfont: { color: 'blue' },
+          // 根据计算结果设置轴范围，并关闭自动缩放
+          range: magYaxisRange || undefined, // 如果magYaxisRange为null，则设置为undefined，让Plotly默认处理
+          autorange: magYaxisRange ? false : true // 如果手动设置了range，则关闭autorange
         },
         yaxis2: {
           title: 'Gun',
           titlefont: { color: 'red' },
           tickfont: { color: 'red' },
           overlaying: 'y',
-          side: 'right'
+          side: 'right',
+          // 根据计算结果设置轴范围，并关闭自动缩放
+          range: gunYaxisRange || undefined,
+          autorange: gunYaxisRange ? false : true
         },
         legend: {
-          orientation: 'h', // 水平排列
-          x: 0.5,           // 水平方向中心
-          xanchor: 'center', // 图例中心与 x 对齐
-          y: 1.02,          // 略高于图表顶部
-          yanchor: 'bottom'  // 图例底部与 y 对齐
+          orientation: 'h', 
+          x: 0.5,           
+          xanchor: 'center', 
+          y: 1.02,          
+          yanchor: 'bottom'  
         }
-      }).then(() => {
+      };
+
+      Plotly.newPlot('plot', traces, layout).then(() => {
         const plot = document.getElementById('plot');
         plot.on('plotly_relayout', (event) => {
-          // 仅在实际的x轴范围发生变化时才更新滑块和重新绘制
           if (event['xaxis.range[0]'] !== undefined && event['xaxis.range[1]'] !== undefined) {
             try {
               let rawIdx1 = parseFloat(event['xaxis.range[0]']);
               let rawIdx2 = parseFloat(event['xaxis.range[1]']);
 
-              // 确保索引在 x_plotted_categories 的有效范围内
               let idx1 = Math.max(0, Math.floor(rawIdx1 + 0.0001)); 
               let idx2 = Math.min(x_plotted_categories.length - 1, Math.ceil(rawIdx2 - 0.0001)); 
               
@@ -257,29 +402,26 @@
               let newStartSec = timeToSeconds(timeStr1);
               let newEndSec = timeToSeconds(timeStr2);
               
-              // 确保秒数在全局的 minTime 和 maxTime 范围内
               const currentStart = parseInt(startSlider.value);
               const currentEnd = parseInt(endSlider.value);
 
-              // 只有当计算出的新范围与当前滑块值不同时才更新并重新绘制
               if (newStartSec !== currentStart || newEndSec !== currentEnd) {
                   startSlider.value = Math.max(newStartSec, minTime);
                   endSlider.value = Math.min(newEndSec, maxTime);
-                  updatePlot(); // 关键：在这里调用 updatePlot 以刷新图表和提示
+                  updatePlot(); 
               }
 
             } catch (e) {
               console.warn('plotly_relayout时间解析失败或超出范围：', e);
             }
           } else if (event['xaxis.autorange']) { 
-              // 当自动范围被触发时，将滑块重置为总数据的最小和最大时间
               const currentStart = parseInt(startSlider.value);
               const currentEnd = parseInt(endSlider.value);
 
               if (minTime !== currentStart || maxTime !== currentEnd) {
                 startSlider.value = minTime; 
                 endSlider.value = maxTime; 
-                updatePlot(); // 关键：在这里调用 updatePlot
+                updatePlot(); 
               }
           }
         });
@@ -295,32 +437,38 @@
         console.time('CSV Parsing'); 
         const csv = evt.target.result;
         const lines = csv.split(/\r?\n/).filter(line => line.trim() !== '');
-        const data = {};
+        const data = {}; 
         let currentMinTime = Infinity, currentMaxTime = -Infinity; 
         let currentDataMin = Infinity, currentDataMax = -Infinity; 
 
         for (let i = 1; i < lines.length; i++) { 
           const row = lines[i].split(',');
-          if (row.length < 16) continue; 
+          if (row.length < 16) {
+              console.warn(`CSV解析：行 ${i+1} 列数不足，跳过。`, lines[i]);
+              continue; 
+          }
 
           const timeStr = row[0].trim();
+          const col2Val = parseFloat(row[1]); 
           const magVal = parseFloat(row[14]);
           const gunVal = parseFloat(row[15]);
           
           const t = timeToSeconds(timeStr); 
 
           if (!isNaN(t) && t >=0) { 
-            data[t] = data[t] || {}; 
-            if (!isNaN(magVal)) data[t].mag = magVal;
-            if (!isNaN(gunVal)) data[t].gun = gunVal;
-
-            if (!isNaN(magVal) && !isNaN(gunVal)) {
-              if (t < currentDataMin) currentDataMin = t;
-              if (t > currentDataMax) currentDataMax = t;
-            }
-            
             if (t < currentMinTime) currentMinTime = t;
             if (t > currentMaxTime) currentMaxTime = t;
+
+            if (!isNaN(col2Val) && col2Val > 500) { 
+                data[t] = data[t] || {}; 
+                if (!isNaN(magVal)) data[t].mag = magVal;
+                if (!isNaN(gunVal)) data[t].gun = gunVal;
+
+                if (!isNaN(magVal) || !isNaN(gunVal)) { 
+                    if (t < currentDataMin) currentDataMin = t;
+                    if (t > currentDataMax) currentDataMax = t;
+                }
+            }
           } else {
               console.warn(`CSV解析：时间或数值无效，行 ${i+1}:`, lines[i]);
           }
@@ -344,7 +492,7 @@
         
         startSlider.value = (currentDataMin !== Infinity) ? currentDataMin : minTime;
         endSlider.value = (currentDataMax !== -Infinity) ? currentDataMax : maxTime;
-
+        
         console.timeEnd('CSV Parsing'); 
         updatePlot();
       };
@@ -355,8 +503,9 @@
     endSlider.addEventListener('input', updatePlot);
     document.getElementById('showMag').addEventListener('change', updatePlot);
     document.getElementById('showGun').addEventListener('change', updatePlot);
-    // 新增：阀值滑块事件监听
     thresholdSlider.addEventListener('input', updatePlot); 
+    minMagSlider.addEventListener('input', updatePlot);
+    minGunSlider.addEventListener('input', updatePlot);
   </script>
 </body>
 </html>
