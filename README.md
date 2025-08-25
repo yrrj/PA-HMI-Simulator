@@ -1,4 +1,4 @@
 # PA HMI Simulator
-PA Product HMIs simulator by Lei Guo
+PA Product HMIs Simulator by Lei Guo
 
-Please visit deployed website https://yrrj.github.io/PA-HMI-Simulator/
+Please visit the deployed website https://yrrj.github.io/PA-HMI-Simulator/
